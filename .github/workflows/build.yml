@@ -1,0 +1,41 @@
+name: build-xray-freebsd
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Xray-core tag, e.g. v26.7.28'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: XTLS/Xray-core
+          ref: ${{ inputs.version }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=freebsd GOARCH=$arch \
+              go build -o dist/xray-freebsd-$arch \
+              -trimpath -buildvcs=false -ldflags "-s -w -buildid=" ./main
+          done
+          cd dist && sha256sum xray-freebsd-* > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: Xray ${{ inputs.version }} (FreeBSD)
+          make_latest: true
+          files: dist/*
